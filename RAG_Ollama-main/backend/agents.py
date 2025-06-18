@@ -31,16 +31,16 @@ class RetrieverAgent:
             logger.info(f"{self.name}: Retrieving documents for query: {query}")
             
             # Get relevant documents from vector database
-            context_docs = self.query_vector_db(query, top_k)
-            context = "\n".join(context_docs) if context_docs else ""
+            context_chunks = self.query_vector_db(query, top_k)
+            context = "\n".join([chunk['text'] for chunk in context_chunks]) if context_chunks else ""
             
-            logger.info(f"{self.name}: Retrieved {len(context_docs)} documents")
+            logger.info(f"{self.name}: Retrieved {len(context_chunks)} documents")
             
             return {
                 "query": query,
-                "retrieved_documents": context_docs,
+                "retrieved_documents": context_chunks,
                 "context": context,
-                "num_documents": len(context_docs),
+                "num_documents": len(context_chunks),
                 "status": "success"
             }
             
@@ -291,7 +291,7 @@ class MultiAgentRFPAssistant:
             query: User's question or request
             
         Returns:
-            Dictionary containing results from both agents
+            Dictionary containing results from pdf
         """
         logger.info("MultiAgentRFPAssistant: Starting query processing")
         

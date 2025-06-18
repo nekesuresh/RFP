@@ -3,7 +3,8 @@ from typing import Optional
 
 class Config:
     # Ollama model configuration
-    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama2-uncensored:7b")
+    # OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama2-uncensored:7b")
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:0.6b")
     OLLAMA_EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", "llama2-uncensored:7b")
     
     # Vector database configuration

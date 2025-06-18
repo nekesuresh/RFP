@@ -12,7 +12,7 @@ import ollama
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from rag_pipeline import add_to_vector_db, query_vector_db
-from pdf_load import extract_text_from_pdf
+from pdf_load import extract_text_from_pdf, split_pdf_into_chunks_with_metadata
 from backend.agents import MultiAgentRFPAssistant
 from backend.config import Config
 
@@ -53,14 +53,16 @@ def process_pdf_sync(file_path: str, task_id: str):
     """Process PDF file and add to vector database"""
     logging.info(f"Task {task_id}: Started processing {file_path}")
     try:
-        text = extract_text_from_pdf(file_path)
+        paragraphs = extract_text_from_pdf(file_path)
         logging.info(f"Task {task_id}: Extracted text from PDF")
 
-        # Use configurable chunk size
+        # Use semantic chunking with metadata
         chunk_size = Config.CHUNK_SIZE
-        chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+        chunks = split_pdf_into_chunks_with_metadata(paragraphs, chunk_size=chunk_size, overlap=50)
         ids = [str(uuid.uuid4()) for _ in chunks]
-        add_to_vector_db(chunks, ids)
+        chunk_texts = [chunk['text'] for chunk in chunks]
+        metadatas = [{"page": chunk['page'], "para": chunk['para']} for chunk in chunks]
+        add_to_vector_db(chunk_texts, ids, metadatas)
 
         logging.info(f"Task {task_id}: Successfully added {len(chunks)} chunks to vector DB")
     except Exception as e:

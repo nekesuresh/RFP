@@ -96,23 +96,43 @@ def display_agent_log(agent_log: list):
                             "Select a document to view:",
                             options=list(range(len(docs))),
                             format_func=lambda i: f"Document {i+1}",
-                            key=f"retrieved_doc_selector_{expander_key}"
+                            key=f"retrieved_doc_selector_{i}_{expander_key}"
                         )
-                        st.text_area(
-                            f"Document {selected_doc_idx+1}",
-                            docs[selected_doc_idx],
-                            height=100,
-                            disabled=True,
-                            key=f"doc_{selected_doc_idx}_retriever_{expander_key}"
-                        )
+                        doc = docs[selected_doc_idx]
+                        if isinstance(doc, dict):
+                            st.text_area(
+                                f"Document {selected_doc_idx+1} (Page {doc.get('page', '?')}, Para: {doc.get('para', '')})",
+                                doc.get('text', ''),
+                                height=100,
+                                disabled=True,
+                                key=f"doc_{selected_doc_idx}_retriever_{i}_{expander_key}"
+                            )
+                        else:
+                            st.text_area(
+                                f"Document {selected_doc_idx+1}",
+                                str(doc),
+                                height=100,
+                                disabled=True,
+                                key=f"doc_{selected_doc_idx}_retriever_{i}_{expander_key}"
+                            )
                     else:
-                        st.text_area(
-                            "Document 1",
-                            docs[0],
-                            height=100,
-                            disabled=True,
-                            key=f"doc_1_retriever_{expander_key}"
-                        )
+                        doc = docs[0]
+                        if isinstance(doc, dict):
+                            st.text_area(
+                                f"Document 1 (Page {doc.get('page', '?')}, Para: {doc.get('para', '')})",
+                                doc.get('text', ''),
+                                height=100,
+                                disabled=True,
+                                key=f"doc_1_retriever_{i}_{expander_key}"
+                            )
+                        else:
+                            st.text_area(
+                                "Document 1",
+                                str(doc),
+                                height=100,
+                                disabled=True,
+                                key=f"doc_1_retriever_{i}_{expander_key}"
+                            )
             
             elif step['agent'] == "RFP Editor Agent":
                 st.write(f"**Status:** {result.get('status', 'N/A')}")
@@ -347,21 +367,41 @@ def main():
                         format_func=lambda i: f"Document {i+1}",
                         key="retrieved_doc_selector_main"
                     )
-                    st.text_area(
-                        f"Content {selected_doc_idx+1}",
-                        docs[selected_doc_idx],
-                        height=100,
-                        disabled=True,
-                        key=f"doc_{selected_doc_idx}_retriever_main"
-                    )
+                    doc = docs[selected_doc_idx]
+                    if isinstance(doc, dict):
+                        st.text_area(
+                            f"Content {selected_doc_idx+1} (Page {doc.get('page', '?')}, Para: {doc.get('para', '')})",
+                            doc.get('text', ''),
+                            height=100,
+                            disabled=True,
+                            key=f"doc_{selected_doc_idx}_retriever_main"
+                        )
+                    else:
+                        st.text_area(
+                            f"Content {selected_doc_idx+1}",
+                            str(doc),
+                            height=100,
+                            disabled=True,
+                            key=f"doc_{selected_doc_idx}_retriever_main"
+                        )
                 else:
-                    st.text_area(
-                        "Content 1",
-                        docs[0],
-                        height=100,
-                        disabled=True,
-                        key="doc_1_retriever_main"
-                    )
+                    doc = docs[0]
+                    if isinstance(doc, dict):
+                        st.text_area(
+                            f"Content 1 (Page {doc.get('page', '?')}, Para: {doc.get('para', '')})",
+                            doc.get('text', ''),
+                            height=100,
+                            disabled=True,
+                            key="doc_1_retriever_main"
+                        )
+                    else:
+                        st.text_area(
+                            "Content 1",
+                            str(doc),
+                            height=100,
+                            disabled=True,
+                            key="doc_1_retriever_main"
+                        )
             
             # Display improvement results
             improvement = response_data['improvement_result']
