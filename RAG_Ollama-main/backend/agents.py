@@ -154,44 +154,70 @@ class RFPEditorAgent:
             }
     
     def _create_analysis_prompt(self, query: str, context: str, original_response: str = None) -> str:
-        """Create the analysis prompt with RFP best practices"""
+        """Create the analysis prompt with intelligent response logic"""
         
-        base_prompt = f"""
-        You are an expert RFP (Request for Proposal) editor and consultant. Your task is to analyze the given content and provide improvements based on RFP best practices.
+        # Check if the query is asking about content retrieval
+        retrieval_keywords = ['is there', 'does it contain', 'does the document', 'is mentioned', 'can you find', 'look for', 'search for', 'find', 'locate', 'where is', 'what does it say about']
+        is_retrieval_query = any(keyword in query.lower() for keyword in retrieval_keywords)
+        
+        if is_retrieval_query and context.strip():
+            # User is asking if something exists in the PDF - provide relevant content
+            base_prompt = f"""
+            You are an expert assistant analyzing a PDF document. The user is asking if specific content exists in the document.
 
-        {self.rfp_best_practices}
+            USER QUERY: {query}
 
-        USER QUERY: {query}
+            RELEVANT CONTENT FROM DOCUMENT:
+            {context}
 
-        CONTEXT FROM DOCUMENTS:
-        {context}
+            INSTRUCTIONS:
+            - If the relevant content is found, clearly state what was found and provide the specific information
+            - If the content is not found, clearly state that it was not found in the document
+            - Always be specific about what was found or not found
+            - Use the exact content from the document when possible
+            - If the content is partially relevant, explain what was found and what might be missing
 
-        """
+            Please provide a clear, direct answer based on the document content.
+            """
+        elif is_retrieval_query and not context.strip():
+            # User is asking for content but nothing was found
+            base_prompt = f"""
+            You are an expert assistant analyzing a PDF document. The user is asking if specific content exists in the document.
+
+            USER QUERY: {query}
+
+            RESULT: No relevant content was found in the document for this query.
+
+            INSTRUCTIONS:
+            - Clearly state that the requested content was not found in the document
+            - Suggest what the user might be looking for or alternative ways to phrase their question
+            - Be helpful and informative even when content is not found
+
+            Please provide a helpful response explaining that the content was not found.
+            """
+        else:
+            # User is not asking for retrieval - answer the question directly
+            base_prompt = f"""
+            You are an expert assistant. The user has asked a question that does not require searching through document content.
+
+            USER QUERY: {query}
+
+            INSTRUCTIONS:
+            - Answer the question directly based on your knowledge
+            - Do not reference any document content unless specifically relevant
+            - Provide helpful, accurate, and informative responses
+            - If the question is about RFP best practices, use your expertise to provide guidance
+
+            Please provide a direct answer to the user's question.
+            """
         
         if original_response:
             base_prompt += f"""
+            
             PREVIOUS RESPONSE (if this is a revision):
             {original_response}
             
             Please provide an improved version that addresses any feedback or concerns.
-            """
-        else:
-            base_prompt += """
-            Please analyze the content and provide:
-            1. An improved version that follows RFP best practices
-            2. Specific suggestions for enhancement
-            3. Areas that need clarification or additional detail
-            4. Recommendations for better structure and clarity
-            
-            Format your response as:
-            ---IMPROVED CONTENT---
-            [Your improved version here]
-            
-            ---SUGGESTIONS---
-            [List of specific improvements made]
-            
-            ---AREAS FOR CLARIFICATION---
-            [What needs more detail or clarification]
             """
         
         return base_prompt
@@ -233,18 +259,44 @@ class RFPEditorAgent:
         try:
             logger.info(f"{self.name}: Rephrasing based on user feedback")
             
-            rephrase_prompt = f"""
-            The user rejected your previous suggestion. Please provide an improved version.
+            # Check if the query is asking about content retrieval
+            retrieval_keywords = ['is there', 'does it contain', 'does the document', 'is mentioned', 'can you find', 'look for', 'search for', 'find', 'locate', 'where is', 'what does it say about']
+            is_retrieval_query = any(keyword in query.lower() for keyword in retrieval_keywords)
             
-            ORIGINAL QUERY: {query}
-            CONTEXT: {context}
-            YOUR PREVIOUS SUGGESTION: {original_suggestion}
-            USER FEEDBACK: {feedback}
-            
-            {self.rfp_best_practices}
-            
-            Please provide a new suggestion that addresses the user's feedback while maintaining RFP best practices.
-            """
+            if is_retrieval_query:
+                rephrase_prompt = f"""
+                The user rejected your previous suggestion. Please provide an improved version.
+                
+                ORIGINAL QUERY: {query}
+                CONTEXT: {context}
+                YOUR PREVIOUS SUGGESTION: {original_suggestion}
+                USER FEEDBACK: {feedback}
+                
+                INSTRUCTIONS:
+                - If the relevant content is found, clearly state what was found and provide the specific information
+                - If the content is not found, clearly state that it was not found in the document
+                - Always be specific about what was found or not found
+                - Use the exact content from the document when possible
+                - Address the user's feedback in your response
+                
+                Please provide a new suggestion that addresses the user's feedback.
+                """
+            else:
+                rephrase_prompt = f"""
+                The user rejected your previous suggestion. Please provide an improved version.
+                
+                ORIGINAL QUERY: {query}
+                YOUR PREVIOUS SUGGESTION: {original_suggestion}
+                USER FEEDBACK: {feedback}
+                
+                INSTRUCTIONS:
+                - Answer the question directly based on your knowledge
+                - Do not reference any document content unless specifically relevant
+                - Provide helpful, accurate, and informative responses
+                - Address the user's feedback in your response
+                
+                Please provide a new suggestion that addresses the user's feedback.
+                """
             
             response = ollama.chat(
                 model=Config.get_ollama_model(),
@@ -295,37 +347,61 @@ class MultiAgentRFPAssistant:
         """
         logger.info("MultiAgentRFPAssistant: Starting query processing")
         
-        # Step 1: Agent A - Retrieve relevant documents
-        retrieval_result = self.retriever_agent.retrieve(query)
-        self.agent_log.append({
-            "step": 1,
-            "agent": "Retriever Agent",
-            "action": "Document retrieval",
-            "result": retrieval_result
-        })
+        # Check if the query is asking about content retrieval
+        retrieval_keywords = ['is there', 'does it contain', 'does the document', 'is mentioned', 'can you find', 'look for', 'search for', 'find', 'locate', 'where is', 'what does it say about']
+        is_retrieval_query = any(keyword in query.lower() for keyword in retrieval_keywords)
         
-        if retrieval_result["status"] == "error":
-            return {
-                "status": "error",
-                "error": "Failed to retrieve documents",
-                "agent_log": self.agent_log
+        if is_retrieval_query:
+            # Step 1: Agent A - Retrieve relevant documents
+            retrieval_result = self.retriever_agent.retrieve(query)
+            self.agent_log.append({
+                "step": 1,
+                "agent": "Retriever Agent",
+                "action": "Document retrieval",
+                "result": retrieval_result
+            })
+            
+            if retrieval_result["status"] == "error":
+                return {
+                    "status": "error",
+                    "error": "Failed to retrieve documents",
+                    "agent_log": self.agent_log
+                }
+            
+            # Step 2: Agent B - Analyze and improve content
+            if retrieval_result["context"]:
+                improvement_result = self.rfp_editor_agent.analyze_and_improve(
+                    query, 
+                    retrieval_result["context"]
+                )
+            else:
+                improvement_result = self.rfp_editor_agent.analyze_and_improve(
+                    query, 
+                    ""  # Empty context for no results found
+                )
+        else:
+            # For non-retrieval queries, skip document retrieval and answer directly
+            retrieval_result = {
+                "status": "skipped",
+                "query": query,
+                "context": "",
+                "num_documents": 0,
+                "retrieved_documents": [],
+                "message": "Document retrieval skipped - answering directly"
             }
-        
-        # Step 2: Agent B - Analyze and improve content
-        if retrieval_result["context"]:
+            
+            self.agent_log.append({
+                "step": 1,
+                "agent": "Retriever Agent",
+                "action": "Document retrieval",
+                "result": retrieval_result
+            })
+            
+            # Step 2: Agent B - Answer directly without context
             improvement_result = self.rfp_editor_agent.analyze_and_improve(
                 query, 
-                retrieval_result["context"]
+                ""  # No context needed for direct answers
             )
-        else:
-            improvement_result = {
-                "original_query": query,
-                "context_used": "",
-                "improved_content": "No relevant documents found to analyze.",
-                "best_practices_applied": [],
-                "status": "no_context",
-                "agent_name": "RFP Editor Agent"
-            }
         
         self.agent_log.append({
             "step": 2,
@@ -344,40 +420,39 @@ class MultiAgentRFPAssistant:
     
     def handle_feedback(self, query: str, feedback: str, original_suggestion: str) -> Dict[str, Any]:
         """
-        Handle user feedback and generate revised suggestions
+        Handle user feedback and provide an improved response
         
         Args:
             query: Original user query
-            feedback: User feedback (rejection reason)
-            original_suggestion: The suggestion that was rejected
+            feedback: User feedback
+            original_suggestion: The original suggestion that received feedback
             
         Returns:
-            Dictionary containing the revised suggestion
+            Dictionary containing the improved response
         """
-        logger.info("MultiAgentRFPAssistant: Handling user feedback")
-        
-        # Get the original context from the log
-        original_context = ""
-        if self.agent_log:
-            retrieval_result = self.agent_log[0]["result"]
-            original_context = retrieval_result.get("context", "")
-        
-        # Generate revised suggestion
-        revision_result = self.rfp_editor_agent.rephrase_with_feedback(
-            query, original_context, feedback, original_suggestion
-        )
-        
-        self.agent_log.append({
-            "step": len(self.agent_log) + 1,
-            "agent": "RFP Editor Agent",
-            "action": "Feedback-based revision",
-            "result": revision_result
-        })
-        
-        return {
-            "status": "success",
-            "query": query,
-            "feedback": feedback,
-            "revision_result": revision_result,
-            "agent_log": self.agent_log
-        } 
+        try:
+            logger.info(f"{self.name}: Handling user feedback")
+            
+            # Get context if needed for retrieval queries
+            retrieval_keywords = ['is there', 'does it contain', 'does the document', 'is mentioned', 'can you find', 'look for', 'search for', 'find', 'locate', 'where is', 'what does it say about']
+            is_retrieval_query = any(keyword in query.lower() for keyword in retrieval_keywords)
+            
+            if is_retrieval_query:
+                # For retrieval queries, we need to get context first
+                context_result = self.retriever_agent.retrieve(query)
+                context = context_result.get('context', '')
+                return self.rfp_editor_agent.rephrase_with_feedback(query, context, feedback, original_suggestion)
+            else:
+                # For non-retrieval queries, answer directly without context
+                return self.rfp_editor_agent.rephrase_with_feedback(query, '', feedback, original_suggestion)
+                
+        except Exception as e:
+            logger.error(f"{self.name}: Error handling feedback: {e}")
+            return {
+                "original_query": query,
+                "improved_content": "",
+                "feedback_addressed": feedback,
+                "status": "error",
+                "error": str(e),
+                "agent_name": self.name
+            } 
