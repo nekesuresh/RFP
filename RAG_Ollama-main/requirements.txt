@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+chromadb
+PyPDF2
+sentence-transformers
+ollama
+python-multipart
+streamlit
+requests
+pydantic
