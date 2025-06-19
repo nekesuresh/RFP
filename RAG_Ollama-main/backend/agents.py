@@ -2,6 +2,7 @@ import ollama
 import logging
 from typing import List, Dict, Any, Tuple
 from .config import Config
+import re
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -326,6 +327,62 @@ class RFPEditorAgent:
                 "error": str(e),
                 "agent_name": self.name
             }
+
+class HelpingAgent:
+    """Agent that answers RFP-related questions using both general RFP knowledge and indexed PDFs."""
+    def __init__(self, query_vector_db_func):
+        self.query_vector_db = query_vector_db_func
+        self.name = "Helping Agent"
+
+    def answer(self, query: str) -> str:
+        try:
+            top_k = Config.TOP_K_RESULTS
+            context_chunks = self.query_vector_db(query, n_results=top_k)
+            logger.info(f"{self.name} context_chunks: {context_chunks}")
+            if not isinstance(context_chunks, list):
+                context_chunks = []
+            filtered_chunks = []
+            if context_chunks:
+                for chunk in context_chunks:
+                    if isinstance(chunk, dict) and 'text' in chunk and chunk['text'] is not None:
+                        filtered_chunks.append(chunk)
+            context = "\n".join([chunk['text'] for chunk in filtered_chunks]) if filtered_chunks else ""
+
+            prompt = f"""
+            You are an expert in writing, reviewing, and consulting on Requests for Proposal (RFPs). Answer the user's question with clear, accurate, and practical advice. Use both your general RFP knowledge and the provided document context below. If the context is relevant, cite it in your answer. If not, answer from your expertise.
+
+            USER QUESTION: {query}
+
+            DOCUMENT CONTEXT:
+            {context}
+            """
+            response = ollama.chat(
+                model=Config.get_ollama_model(),
+                messages=[{"role": "user", "content": prompt}],
+                options={"temperature": Config.TEMPERATURE}
+            )
+            if not response or not isinstance(response, dict):
+                logger.error(f"{self.name}: ollama.chat returned None or invalid response: {response}")
+                return "Error: LLM did not return a valid response."
+            message = response.get('message')
+            if not message or not isinstance(message, dict):
+                logger.error(f"{self.name}: ollama.chat response missing 'message': {response}")
+                return "Error: LLM response missing message content."
+            content = message.get('content')
+            if not content:
+                logger.error(f"{self.name}: ollama.chat message missing 'content': {response}")
+                return "Error: LLM response missing content."
+            # Remove any preamble or 'thoughts' before the answer
+            # Heuristic: take content after the first double linebreak or 'Answer:'
+            split_content = re.split(r"\n\n|Answer:|A:|\n[Aa]nswer", content, maxsplit=1)
+            if len(split_content) > 1:
+                answer = split_content[1].strip()
+            else:
+                answer = content.strip()
+            return answer
+        except Exception as e:
+            logger.error(f"{self.name}: Error in answer: {e}")
+            return f"Error: {str(e)}"
 
 class MultiAgentRFPAssistant:
     """Main coordinator for the multi-agent RFP review system"""

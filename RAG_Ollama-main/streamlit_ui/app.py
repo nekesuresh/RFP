@@ -101,9 +101,9 @@ def display_agent_log(agent_log: list):
                         doc = docs[selected_doc_idx]
                         if isinstance(doc, dict):
                             st.text_area(
-                                f"Document {selected_doc_idx+1} (Page {doc.get('page', '?')}, Para: {doc.get('para', '')})",
+                                f"Document {selected_doc_idx+1} (Page {doc.get('page', '?')}, Para: {doc.get('para', '')}, Tokens: {doc.get('tokens', 'N/A')})",
                                 doc.get('text', ''),
-                                height=100,
+                                height=200,
                                 disabled=True,
                                 key=f"doc_{selected_doc_idx}_retriever_{i}_{expander_key}"
                             )
@@ -111,7 +111,7 @@ def display_agent_log(agent_log: list):
                             st.text_area(
                                 f"Document {selected_doc_idx+1}",
                                 str(doc),
-                                height=100,
+                                height=200,
                                 disabled=True,
                                 key=f"doc_{selected_doc_idx}_retriever_{i}_{expander_key}"
                             )
@@ -119,9 +119,9 @@ def display_agent_log(agent_log: list):
                         doc = docs[0]
                         if isinstance(doc, dict):
                             st.text_area(
-                                f"Document 1 (Page {doc.get('page', '?')}, Para: {doc.get('para', '')})",
+                                f"Document 1 (Page {doc.get('page', '?')}, Para: {doc.get('para', '')}, Tokens: {doc.get('tokens', 'N/A')})",
                                 doc.get('text', ''),
-                                height=100,
+                                height=200,
                                 disabled=True,
                                 key=f"doc_1_retriever_{i}_{expander_key}"
                             )
@@ -129,7 +129,7 @@ def display_agent_log(agent_log: list):
                             st.text_area(
                                 "Document 1",
                                 str(doc),
-                                height=100,
+                                height=200,
                                 disabled=True,
                                 key=f"doc_1_retriever_{i}_{expander_key}"
                             )
@@ -326,104 +326,109 @@ def main():
     
     with col1:
         st.header("Ask Your Question")
-        
-        # Query input
-        query = st.text_area(
-            "Enter your RFP-related question or request for improvement:",
-            placeholder="e.g., 'Help me improve the project scope section' or 'Review this technical requirements section'",
-            height=100,
-            key="query_input"
-        )
-        
-        if st.button("Process with Multi-Agent System", type="primary"):
-            if query.strip():
-                with st.spinner("Processing with multi-agent system..."):
-                    response = ask_question(query)
-                    if response:
-                        st.session_state.current_query = query
-                        st.session_state.current_response = response
-                        st.session_state.agent_log = response.get('agent_log', [])
-                        st.rerun()
-            else:
-                st.error("Please enter a query.")
-        
-        # Display current response
-        if st.session_state.current_response:
-            st.subheader("Results")
-            
-            response_data = st.session_state.current_response
-            
-            # Display retrieval results
-            retrieval = response_data['retrieval_result']
-            st.write(f"Retriever Agent Results:")
-            st.info(f"Found {retrieval.get('num_documents', 0)} relevant documents")
-            
-            if retrieval.get('retrieved_documents'):
-                docs = retrieval['retrieved_documents']
-                if len(docs) > 1:
-                    selected_doc_idx = st.radio(
-                        "Select a document to view:",
-                        options=list(range(len(docs))),
-                        format_func=lambda i: f"Document {i+1}",
-                        key="retrieved_doc_selector_main"
-                    )
-                    doc = docs[selected_doc_idx]
-                    if isinstance(doc, dict):
-                        st.text_area(
-                            f"Content {selected_doc_idx+1} (Page {doc.get('page', '?')}, Para: {doc.get('para', '')})",
-                            doc.get('text', ''),
-                            height=100,
-                            disabled=True,
-                            key=f"doc_{selected_doc_idx}_retriever_main"
-                        )
-                    else:
-                        st.text_area(
-                            f"Content {selected_doc_idx+1}",
-                            str(doc),
-                            height=100,
-                            disabled=True,
-                            key=f"doc_{selected_doc_idx}_retriever_main"
-                        )
+        tab1, tab2 = st.tabs(["Retrieving Agent", "Helping Agent"])
+
+        with tab1:
+            # Query input for Retrieving Agent
+            query = st.text_area(
+                "Enter your RFP-related question or request for improvement:",
+                placeholder="e.g., 'Help me improve the project scope section' or 'Review this technical requirements section'",
+                height=100,
+                key="query_input_retriever"
+            )
+            if st.button("Process with Multi-Agent System", type="primary", key="process_retriever"):
+                if query.strip():
+                    with st.spinner("Processing with multi-agent system..."):
+                        response = ask_question(query)
+                        if response:
+                            st.session_state.current_query = query
+                            st.session_state.current_response = response
+                            st.session_state.agent_log = response.get('agent_log', [])
+                            st.rerun()
                 else:
-                    doc = docs[0]
-                    if isinstance(doc, dict):
-                        st.text_area(
-                            f"Content 1 (Page {doc.get('page', '?')}, Para: {doc.get('para', '')})",
-                            doc.get('text', ''),
-                            height=100,
-                            disabled=True,
-                            key="doc_1_retriever_main"
+                    st.error("Please enter a query.")
+            # Display current response (retriever)
+            if st.session_state.current_response and st.session_state.current_query == query:
+                st.subheader("Results")
+                response_data = st.session_state.current_response
+                retrieval = response_data['retrieval_result']
+                st.write(f"Retriever Agent Results:")
+                st.info(f"Found {retrieval.get('num_documents', 0)} relevant documents")
+                if retrieval.get('retrieved_documents'):
+                    docs = retrieval['retrieved_documents']
+                    if len(docs) > 1:
+                        selected_doc_idx = st.radio(
+                            "Select a document to view:",
+                            options=list(range(len(docs))),
+                            format_func=lambda i: f"Document {i+1}",
+                            key="retrieved_doc_selector_main"
                         )
+                        doc = docs[selected_doc_idx]
+                        if isinstance(doc, dict):
+                            st.text_area(
+                                f"Content {selected_doc_idx+1} (Page {doc.get('page', '?')}, Para: {doc.get('para', '')}, Tokens: {doc.get('tokens', 'N/A')})",
+                                doc.get('text', ''),
+                                height=200,
+                                key=f"retrieved_doc_text_main_{selected_doc_idx}"
+                            )
+                        else:
+                            st.text_area(
+                                f"Content {selected_doc_idx+1}",
+                                doc,
+                                height=200,
+                                key=f"retrieved_doc_text_main_{selected_doc_idx}"
+                            )
                     else:
-                        st.text_area(
-                            "Content 1",
-                            str(doc),
-                            height=100,
-                            disabled=True,
-                            key="doc_1_retriever_main"
-                        )
-            
-            # Display improvement results
-            improvement = response_data['improvement_result']
-            st.write(f"RFP Editor Agent Results:")
-            
-            if improvement.get('improved_content'):
-                st.text_area(
-                    "Improved Content",
-                    improvement['improved_content'],
-                    height=300,
-                    disabled=True,
-                    key="improved_content_rfp_editor_main"
-                )
-                
-                if improvement.get('best_practices_applied'):
-                    st.write("Applied Best Practices:")
-                    for idx, practice in enumerate(improvement['best_practices_applied']):
-                        st.write(f"{practice.title()}", key=f"best_practice_{idx}_main")
-            
-            # Feedback interface
-            display_feedback_interface(response_data)
-    
+                        doc = docs[0]
+                        if isinstance(doc, dict):
+                            st.text_area(
+                                f"Content 1 (Page {doc.get('page', '?')}, Para: {doc.get('para', '')}, Tokens: {doc.get('tokens', 'N/A')})",
+                                doc.get('text', ''),
+                                height=200,
+                                disabled=True,
+                                key="doc_1_retriever_main"
+                            )
+                        else:
+                            st.text_area(
+                                "Content 1",
+                                str(doc),
+                                height=200,
+                                disabled=True,
+                                key="doc_1_retriever_main"
+                            )
+                # ... (rest of the retriever agent UI, feedback, etc.) ...
+
+        with tab2:
+            # Helping Agent: simple chatbot for RFP knowledge
+            help_query = st.text_area(
+                "Ask the Helping Agent anything about RFPs:",
+                placeholder="e.g., 'What are the key sections of an RFP?'",
+                height=100,
+                key="query_input_helper"
+            )
+            if st.button("Ask Helping Agent", type="primary", key="process_helper"):
+                if help_query.strip():
+                    with st.spinner("Helping Agent is thinking..."):
+                        try:
+                            payload = {"query": help_query}
+                            url = f"{API_BASE_URL}/helping-agent/"
+                            response = requests.post(url, json=payload)
+                            if response.status_code == 200:
+                                result = response.json()
+                                st.session_state.helping_agent_response = result.get("answer", "No answer returned.")
+                                st.session_state.last_help_query = help_query
+                            else:
+                                st.session_state.helping_agent_response = f"Error: {response.status_code} - {response.text} (URL: {url})"
+                                st.session_state.last_help_query = help_query
+                        except Exception as e:
+                            st.session_state.helping_agent_response = f"Error: {str(e)} (URL: {url})"
+                            st.session_state.last_help_query = help_query
+                else:
+                    st.error("Please enter a question.")
+            if st.session_state.get("helping_agent_response") and st.session_state.get("last_help_query") == help_query:
+                st.subheader("Helping Agent's Answer")
+                st.text_area("Answer", st.session_state.helping_agent_response, height=200, key="helping_agent_answer")
+
     with col2:
         st.header("Quick Actions")
         

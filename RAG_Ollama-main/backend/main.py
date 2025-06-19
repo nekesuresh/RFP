@@ -49,6 +49,12 @@ class QueryResponse(BaseModel):
     improvement_result: Dict[str, Any]
     agent_log: list
 
+class HelpingAgentRequest(BaseModel):
+    query: str
+
+class HelpingAgentResponse(BaseModel):
+    answer: str
+
 def process_pdf_sync(file_path: str, task_id: str):
     """Process PDF file and add to vector database"""
     logging.info(f"Task {task_id}: Started processing {file_path}")
@@ -56,17 +62,24 @@ def process_pdf_sync(file_path: str, task_id: str):
         paragraphs = extract_text_from_pdf(file_path)
         logging.info(f"Task {task_id}: Extracted text from PDF")
 
-        # Use semantic chunking with metadata
-        chunk_size = Config.CHUNK_SIZE
-        chunks = split_pdf_into_chunks_with_metadata(paragraphs, chunk_size=chunk_size, overlap=50)
+        # Use token-based chunking
+        max_tokens = Config.get_chunk_size_tokens()
+        overlap_tokens = Config.get_overlap_tokens()
+        chunks = split_pdf_into_chunks_with_metadata(paragraphs, max_tokens=max_tokens, overlap_tokens=overlap_tokens)
+        
+        # Extract text and metadata for vector DB
+        texts = [chunk['text'] for chunk in chunks]
         ids = [str(uuid.uuid4()) for _ in chunks]
-        chunk_texts = [chunk['text'] for chunk in chunks]
-        metadatas = [{"page": chunk['page'], "para": chunk['para']} for chunk in chunks]
-        add_to_vector_db(chunk_texts, ids, metadatas)
+        metadatas = [{'page': chunk['page'], 'para': chunk['para'], 'tokens': chunk['tokens']} for chunk in chunks]
+        
+        add_to_vector_db(texts, ids, metadatas)
 
         logging.info(f"Task {task_id}: Successfully added {len(chunks)} chunks to vector DB")
+        logging.info(f"Task {task_id}: Total tokens: {sum(chunk['tokens'] for chunk in chunks)}")
+        
     except Exception as e:
-        logging.error(f"Task {task_id}: Failed with error: {e}")
+        logging.error(f"Task {task_id}: Error processing PDF: {e}")
+        raise
 
 @app.post("/upload-pdf/")
 async def upload_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
@@ -80,11 +93,11 @@ async def upload_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
     
-    # Create data directory if it doesn't exist
-    data_dir = Config.DATA_DIR
-    os.makedirs(data_dir, exist_ok=True)
+    # Create upload directory if it doesn't exist
+    upload_dir = Config.UPLOAD_DIR
+    os.makedirs(upload_dir, exist_ok=True)
     
-    file_path = os.path.join(data_dir, file.filename)
+    file_path = os.path.join(upload_dir, file.filename)
     
     # Save the uploaded file
     with open(file_path, "wb") as f:
@@ -196,6 +209,45 @@ async def get_config():
         "top_k_results": Config.TOP_K_RESULTS,
         "temperature": Config.TEMPERATURE
     }
+
+@app.post("/helping-agent/", response_model=HelpingAgentResponse)
+async def helping_agent(request: HelpingAgentRequest):
+    """
+    RFP knowledge chatbot endpoint with document context.
+    Answers any RFP-related question using the Ollama model, leveraging both general RFP knowledge and the indexed PDFs.
+    """
+    try:
+        top_k = Config.TOP_K_RESULTS
+        context_chunks = query_vector_db(request.query, n_results=top_k)
+        logger.info(f"Helping Agent context_chunks: {context_chunks}")
+        # Defensive: ensure context_chunks is a list of dicts with 'text' key and not None
+        if not isinstance(context_chunks, list):
+            context_chunks = []
+        filtered_chunks = []
+        if context_chunks:
+            for chunk in context_chunks:
+                if isinstance(chunk, dict) and 'text' in chunk and chunk['text'] is not None:
+                    filtered_chunks.append(chunk)
+        context = "\n".join([chunk['text'] for chunk in filtered_chunks]) if filtered_chunks else ""
+
+        prompt = f"""
+        You are an expert in writing, reviewing, and consulting on Requests for Proposal (RFPs). Answer the user's question with clear, accurate, and practical advice. Use both your general RFP knowledge and the provided document context below. If the context is relevant, cite it in your answer. If not, answer from your expertise.
+
+        USER QUESTION: {request.query}
+
+        DOCUMENT CONTEXT:
+        {context}
+        """
+        response = ollama.chat(
+            model=Config.get_ollama_model(),
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": Config.TEMPERATURE}
+        )
+        answer = response['message']['content']
+        return HelpingAgentResponse(answer=answer)
+    except Exception as e:
+        logger.error(f"Error in helping agent: {e}")
+        raise HTTPException(status_code=500, detail=f"Error in helping agent: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
