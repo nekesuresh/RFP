@@ -3,6 +3,7 @@ import logging
 from typing import List, Dict, Any, Tuple
 from .config import Config
 import re
+from rag_pipeline import get_all_paragraph_chunks
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,42 +17,47 @@ class RetrieverAgent:
     
     def retrieve(self, query: str, top_k: int = None) -> Dict[str, Any]:
         """
-        Retrieve relevant documents for the given query
-        
-        Args:
-            query: The user's question or request
-            top_k: Number of documents to retrieve
-            
-        Returns:
-            Dictionary containing retrieved documents and metadata
+        Retrieve paragraphs containing exact matches for the keyword/phrase in the uploaded documents.
         """
         try:
             if top_k is None:
                 top_k = Config.TOP_K_RESULTS
-                
-            logger.info(f"{self.name}: Retrieving documents for query: {query}")
-            
-            # Get relevant documents from vector database
-            context_chunks = self.query_vector_db(query, top_k)
-            context = "\n".join([chunk['text'] for chunk in context_chunks]) if context_chunks else ""
-            
-            logger.info(f"{self.name}: Retrieved {len(context_chunks)} documents")
-            
+            logger.info(f"{self.name}: Searching for exact matches for: '{query}'")
+            # Get all paragraph chunks from the vector DB
+            all_chunks = get_all_paragraph_chunks()
+            logger.info(f"{self.name}: Retrieved {len(all_chunks)} total paragraph chunks from DB")
+            logger.debug(f"{self.name}: First few chunks: {all_chunks[:3]}")
+            # Find all paragraphs with exact match (case-insensitive)
+            matches = []
+            for chunk in all_chunks:
+                try:
+                    if not isinstance(chunk, dict):
+                        logger.warning(f"{self.name}: Skipping malformed chunk: {chunk}")
+                        continue
+                    text = chunk.get('text', None)
+                    if not text or not isinstance(text, str) or not text.strip():
+                        logger.warning(f"{self.name}: Skipping chunk with empty or invalid text: {chunk}")
+                        continue
+                    if query.strip().lower() in text.lower():
+                        matches.append(chunk)
+                except Exception as e:
+                    logger.error(f"{self.name}: Error checking chunk: {e}")
+            logger.info(f"{self.name}: Found {len(matches)} paragraphs with exact match for '{query}'")
+            context = "\n\n".join([m['text'] for m in matches]) if matches else ""
             return {
                 "query": query,
-                "retrieved_documents": context_chunks,
+                "retrieved_paragraphs": matches,
                 "context": context,
-                "num_documents": len(context_chunks),
+                "num_paragraphs": len(matches),
                 "status": "success"
             }
-            
         except Exception as e:
             logger.error(f"{self.name}: Error during retrieval: {e}")
             return {
                 "query": query,
-                "retrieved_documents": [],
+                "retrieved_paragraphs": [],
                 "context": "",
-                "num_documents": 0,
+                "num_paragraphs": 0,
                 "status": "error",
                 "error": str(e)
             }
@@ -442,8 +448,8 @@ class MultiAgentRFPAssistant:
                 "status": "skipped",
                 "query": query,
                 "context": "",
-                "num_documents": 0,
-                "retrieved_documents": [],
+                "num_paragraphs": 0,
+                "retrieved_paragraphs": [],
                 "message": "Document retrieval skipped - answering directly"
             }
             

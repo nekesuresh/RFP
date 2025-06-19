@@ -34,3 +34,20 @@ def query_vector_db(query: str, n_results: int = 3):
         import logging
         logging.error(f"Error in query_vector_db: {e}")
         return []
+
+def get_all_paragraph_chunks():
+    """Fetch all paragraph chunks from the vector DB."""
+    try:
+        results = collection.get()
+        docs = results['documents'] if results.get('documents') else []
+        metadatas = results['metadatas'] if results.get('metadatas') else [{} for _ in docs]
+        chunks = []
+        for doc, meta in zip(docs, metadatas):
+            if doc:
+                chunk_info = {"text": doc, "page": meta.get("page", None), "para": meta.get("para", None)}
+                chunks.append(chunk_info)
+        return chunks
+    except Exception as e:
+        import logging
+        logging.error(f"Error in get_all_paragraph_chunks: {e}")
+        return []

@@ -87,51 +87,51 @@ def display_agent_log(agent_log: list):
             
             if step['agent'] == "Retriever Agent":
                 st.write(f"**Query:** {result.get('query', 'N/A')}")
-                st.write(f"**Documents Retrieved:** {result.get('num_documents', 0)}")
+                st.write(f"**Paragraphs Retrieved:** {result.get('num_paragraphs', 0)}")
                 
-                if result.get('retrieved_documents'):
-                    docs = result['retrieved_documents']
-                    if len(docs) > 1:
-                        selected_doc_idx = st.radio(
-                            "Select a document to view:",
-                            options=list(range(len(docs))),
-                            format_func=lambda i: f"Document {i+1}",
-                            key=f"retrieved_doc_selector_{i}_{expander_key}"
+                if result.get('retrieved_paragraphs'):
+                    paras = result['retrieved_paragraphs']
+                    if len(paras) > 1:
+                        selected_para_idx = st.radio(
+                            "Select a paragraph to view:",
+                            options=list(range(len(paras))),
+                            format_func=lambda i: f"Paragraph {i+1}",
+                            key=f"retrieved_para_selector_{i}_{expander_key}"
                         )
-                        doc = docs[selected_doc_idx]
-                        if isinstance(doc, dict):
+                        para = paras[selected_para_idx]
+                        if isinstance(para, dict):
                             st.text_area(
-                                f"Document {selected_doc_idx+1} (Page {doc.get('page', '?')}, Para: {doc.get('para', '')}, Tokens: {doc.get('tokens', 'N/A')})",
-                                doc.get('text', ''),
+                                f"Paragraph {selected_para_idx+1} (Page {para.get('page', '?')}, Para: {para.get('para', '')}, Tokens: {para.get('tokens', 'N/A')})",
+                                para.get('text', ''),
                                 height=200,
                                 disabled=True,
-                                key=f"doc_{selected_doc_idx}_retriever_{i}_{expander_key}"
+                                key=f"para_{selected_para_idx}_retriever_{i}_{expander_key}"
                             )
                         else:
                             st.text_area(
-                                f"Document {selected_doc_idx+1}",
-                                str(doc),
+                                f"Paragraph {selected_para_idx+1}",
+                                str(para),
                                 height=200,
                                 disabled=True,
-                                key=f"doc_{selected_doc_idx}_retriever_{i}_{expander_key}"
+                                key=f"para_{selected_para_idx}_retriever_{i}_{expander_key}"
                             )
                     else:
-                        doc = docs[0]
-                        if isinstance(doc, dict):
+                        para = paras[0]
+                        if isinstance(para, dict):
                             st.text_area(
-                                f"Document 1 (Page {doc.get('page', '?')}, Para: {doc.get('para', '')}, Tokens: {doc.get('tokens', 'N/A')})",
-                                doc.get('text', ''),
+                                f"Paragraph 1 (Page {para.get('page', '?')}, Para: {para.get('para', '')}, Tokens: {para.get('tokens', 'N/A')})",
+                                para.get('text', ''),
                                 height=200,
                                 disabled=True,
-                                key=f"doc_1_retriever_{i}_{expander_key}"
+                                key=f"para_1_retriever_{i}_{expander_key}"
                             )
                         else:
                             st.text_area(
-                                "Document 1",
-                                str(doc),
+                                "Paragraph 1",
+                                str(para),
                                 height=200,
                                 disabled=True,
-                                key=f"doc_1_retriever_{i}_{expander_key}"
+                                key=f"para_1_retriever_{i}_{expander_key}"
                             )
             
             elif step['agent'] == "RFP Editor Agent":
@@ -353,48 +353,48 @@ def main():
                 response_data = st.session_state.current_response
                 retrieval = response_data['retrieval_result']
                 st.write(f"Retriever Agent Results:")
-                st.info(f"Found {retrieval.get('num_documents', 0)} relevant documents")
-                if retrieval.get('retrieved_documents'):
-                    docs = retrieval['retrieved_documents']
-                    if len(docs) > 1:
-                        selected_doc_idx = st.radio(
-                            "Select a document to view:",
-                            options=list(range(len(docs))),
-                            format_func=lambda i: f"Document {i+1}",
-                            key="retrieved_doc_selector_main"
+                st.info(f"Found {retrieval.get('num_paragraphs', 0)} relevant paragraphs")
+                if retrieval.get('retrieved_paragraphs'):
+                    paras = retrieval['retrieved_paragraphs']
+                    if len(paras) > 1:
+                        selected_para_idx = st.radio(
+                            "Select a paragraph to view:",
+                            options=list(range(len(paras))),
+                            format_func=lambda i: f"Paragraph {i+1}",
+                            key="retrieved_para_selector_main"
                         )
-                        doc = docs[selected_doc_idx]
-                        if isinstance(doc, dict):
+                        para = paras[selected_para_idx]
+                        if isinstance(para, dict):
                             st.text_area(
-                                f"Content {selected_doc_idx+1} (Page {doc.get('page', '?')}, Para: {doc.get('para', '')}, Tokens: {doc.get('tokens', 'N/A')})",
-                                doc.get('text', ''),
+                                f"Content {selected_para_idx+1} (Page {para.get('page', '?')}, Para: {para.get('para', '')}, Tokens: {para.get('tokens', 'N/A')})",
+                                para.get('text', ''),
                                 height=200,
-                                key=f"retrieved_doc_text_main_{selected_doc_idx}"
+                                key=f"retrieved_para_text_main_{selected_para_idx}"
                             )
                         else:
                             st.text_area(
-                                f"Content {selected_doc_idx+1}",
-                                doc,
+                                f"Content {selected_para_idx+1}",
+                                para,
                                 height=200,
-                                key=f"retrieved_doc_text_main_{selected_doc_idx}"
+                                key=f"retrieved_para_text_main_{selected_para_idx}"
                             )
                     else:
-                        doc = docs[0]
-                        if isinstance(doc, dict):
+                        para = paras[0]
+                        if isinstance(para, dict):
                             st.text_area(
-                                f"Content 1 (Page {doc.get('page', '?')}, Para: {doc.get('para', '')}, Tokens: {doc.get('tokens', 'N/A')})",
-                                doc.get('text', ''),
+                                f"Content 1 (Page {para.get('page', '?')}, Para: {para.get('para', '')}, Tokens: {para.get('tokens', 'N/A')})",
+                                para.get('text', ''),
                                 height=200,
                                 disabled=True,
-                                key="doc_1_retriever_main"
+                                key="para_1_retriever_main"
                             )
                         else:
                             st.text_area(
                                 "Content 1",
-                                str(doc),
+                                str(para),
                                 height=200,
                                 disabled=True,
-                                key="doc_1_retriever_main"
+                                key="para_1_retriever_main"
                             )
                 # ... (rest of the retriever agent UI, feedback, etc.) ...
 
