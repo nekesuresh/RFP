@@ -18,6 +18,8 @@ def init_session_state():
         st.session_state.agent_log = []
     if 'feedback_history' not in st.session_state:
         st.session_state.feedback_history = []
+    if 'pdf_uploaded' not in st.session_state:
+        st.session_state.pdf_uploaded = False
 
 def check_api_health():
     """Check if the API is running"""
@@ -307,8 +309,13 @@ def main():
                 with st.spinner("Uploading and processing PDF..."):
                     result = upload_pdf(uploaded_file)
                     if result:
-                        st.info(f"{uploaded_file.name} uploaded successfully!")
+                        st.session_state.pdf_uploaded = True
+                        st.success(f"{uploaded_file.name} uploaded successfully!")
                         st.info(f"Task ID: {result.get('task_id', 'N/A')}")
+        
+        # Show a message if a PDF was uploaded in this session
+        if st.session_state.pdf_uploaded:
+            st.success("PDF uploaded and being processed. You can now ask questions.")
         
         # Configuration
         st.subheader("Settings")

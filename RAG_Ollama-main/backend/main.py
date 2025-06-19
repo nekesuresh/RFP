@@ -61,22 +61,15 @@ def process_pdf_sync(file_path: str, task_id: str):
     try:
         paragraphs = extract_text_from_pdf(file_path)
         logging.info(f"Task {task_id}: Extracted text from PDF")
-
-        # Use token-based chunking
         max_tokens = Config.get_chunk_size_tokens()
         overlap_tokens = Config.get_overlap_tokens()
         chunks = split_pdf_into_chunks_with_metadata(paragraphs, max_tokens=max_tokens, overlap_tokens=overlap_tokens)
-        
-        # Extract text and metadata for vector DB
         texts = [chunk['text'] for chunk in chunks]
         ids = [str(uuid.uuid4()) for _ in chunks]
         metadatas = [{'page': chunk['page'], 'para': chunk['para'], 'tokens': chunk['tokens']} for chunk in chunks]
-        
         add_to_vector_db(texts, ids, metadatas)
-
         logging.info(f"Task {task_id}: Successfully added {len(chunks)} chunks to vector DB")
         logging.info(f"Task {task_id}: Total tokens: {sum(chunk['tokens'] for chunk in chunks)}")
-        
     except Exception as e:
         logging.error(f"Task {task_id}: Error processing PDF: {e}")
         raise

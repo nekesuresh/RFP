@@ -39,6 +39,8 @@ def get_all_paragraph_chunks():
     """Fetch all paragraph chunks from the vector DB."""
     try:
         results = collection.get()
+        if not results:
+            return []
         docs = results['documents'] if results.get('documents') else []
         metadatas = results['metadatas'] if results.get('metadatas') else [{} for _ in docs]
         chunks = []

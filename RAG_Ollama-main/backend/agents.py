@@ -22,42 +22,34 @@ class RetrieverAgent:
         try:
             if top_k is None:
                 top_k = Config.TOP_K_RESULTS
-            logger.info(f"{self.name}: Searching for exact matches for: '{query}'")
-            # Get all paragraph chunks from the vector DB
+            logger.info(f"{self.name}: Passing query to LLM for retrieval and answer generation: '{query}'")
             all_chunks = get_all_paragraph_chunks()
             logger.info(f"{self.name}: Retrieved {len(all_chunks)} total paragraph chunks from DB")
-            logger.debug(f"{self.name}: First few chunks: {all_chunks[:3]}")
-            # Find all paragraphs with exact match (case-insensitive)
-            matches = []
-            for chunk in all_chunks:
-                try:
-                    if not isinstance(chunk, dict):
-                        logger.warning(f"{self.name}: Skipping malformed chunk: {chunk}")
-                        continue
-                    text = chunk.get('text', None)
-                    if not text or not isinstance(text, str) or not text.strip():
-                        logger.warning(f"{self.name}: Skipping chunk with empty or invalid text: {chunk}")
-                        continue
-                    if query.strip().lower() in text.lower():
-                        matches.append(chunk)
-                except Exception as e:
-                    logger.error(f"{self.name}: Error checking chunk: {e}")
-            logger.info(f"{self.name}: Found {len(matches)} paragraphs with exact match for '{query}'")
-            context = "\n\n".join([m['text'] for m in matches]) if matches else ""
+            # Concatenate all paragraphs as context
+            context = "\n\n".join([chunk['text'] for chunk in all_chunks if isinstance(chunk, dict) and 'text' in chunk and chunk['text']])
+            llm_answer = ""
+            if context:
+                prompt = f"You are an expert assistant. Use the following document context to answer the user's question.\n\nContext:\n{context}\n\nQuestion: {query}\n\nIf the answer is not in the context, say so."
+                response = ollama.chat(
+                    model=Config.get_ollama_model(),
+                    messages=[{"role": "user", "content": prompt}],
+                    options={"temperature": Config.TEMPERATURE}
+                )
+                llm_answer = response['message']['content']
+            else:
+                llm_answer = "No document context is available to answer the question."
             return {
                 "query": query,
-                "retrieved_paragraphs": matches,
                 "context": context,
-                "num_paragraphs": len(matches),
+                "llm_answer": llm_answer,
                 "status": "success"
             }
         except Exception as e:
             logger.error(f"{self.name}: Error during retrieval: {e}")
             return {
                 "query": query,
-                "retrieved_paragraphs": [],
                 "context": "",
-                "num_paragraphs": 0,
+                "llm_answer": "",
                 "status": "error",
                 "error": str(e)
             }
@@ -410,69 +402,37 @@ class MultiAgentRFPAssistant:
         """
         logger.info("MultiAgentRFPAssistant: Starting query processing")
         
-        # Check if the query is asking about content retrieval
-        retrieval_keywords = ['is there', 'does it contain', 'does the document', 'is mentioned', 'can you find', 'look for', 'search for', 'find', 'locate', 'where is', 'what does it say about']
-        is_retrieval_query = any(keyword in query.lower() for keyword in retrieval_keywords)
-        
-        if is_retrieval_query:
-            # Step 1: Agent A - Retrieve relevant documents
-            retrieval_result = self.retriever_agent.retrieve(query)
-            self.agent_log.append({
-                "step": 1,
-                "agent": "Retriever Agent",
-                "action": "Document retrieval",
-                "result": retrieval_result
-            })
-            
-            if retrieval_result["status"] == "error":
-                return {
-                    "status": "error",
-                    "error": "Failed to retrieve documents",
-                    "agent_log": self.agent_log
-                }
-            
-            # Step 2: Agent B - Analyze and improve content
-            if retrieval_result["context"]:
-                improvement_result = self.rfp_editor_agent.analyze_and_improve(
-                    query, 
-                    retrieval_result["context"]
-                )
-            else:
-                improvement_result = self.rfp_editor_agent.analyze_and_improve(
-                    query, 
-                    ""  # Empty context for no results found
-                )
-        else:
-            # For non-retrieval queries, skip document retrieval and answer directly
-            retrieval_result = {
-                "status": "skipped",
-                "query": query,
-                "context": "",
-                "num_paragraphs": 0,
-                "retrieved_paragraphs": [],
-                "message": "Document retrieval skipped - answering directly"
+        # Always use paragraph containment logic for retrieval
+        retrieval_result = self.retriever_agent.retrieve(query)
+        self.agent_log.append({
+            "step": 1,
+            "agent": "Retriever Agent",
+            "action": "Document retrieval",
+            "result": retrieval_result
+        })
+        if retrieval_result["status"] == "error":
+            return {
+                "status": "error",
+                "error": "Failed to retrieve documents",
+                "agent_log": self.agent_log
             }
-            
-            self.agent_log.append({
-                "step": 1,
-                "agent": "Retriever Agent",
-                "action": "Document retrieval",
-                "result": retrieval_result
-            })
-            
-            # Step 2: Agent B - Answer directly without context
+        # Step 2: Agent B - Analyze and improve content
+        if retrieval_result["context"]:
             improvement_result = self.rfp_editor_agent.analyze_and_improve(
                 query, 
-                ""  # No context needed for direct answers
+                retrieval_result["context"]
             )
-        
+        else:
+            improvement_result = self.rfp_editor_agent.analyze_and_improve(
+                query, 
+                ""  # Empty context for no results found
+            )
         self.agent_log.append({
             "step": 2,
             "agent": "RFP Editor Agent",
             "action": "Content analysis and improvement",
             "result": improvement_result
         })
-        
         return {
             "status": "success",
             "query": query,
